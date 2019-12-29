@@ -1,0 +1,2 @@
+# Wins-per-Pitcher
+This is a project I did for my Statistics 434 (Statistical Learning: Methods and Applications) class. I worked on it with a member of my baseball team, Ryan Milligan. We explored the effects of various statistics (such as ERA, innings pitched, etc.) on predicted number of wins for Major League Baseball's pitchers. We performed linear regression, random forests, ridge regression, LASSO regression, and boosting in order to find the best model for predicting number of wins.
