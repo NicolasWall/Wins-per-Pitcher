@@ -1,0 +1,438 @@
+---
+title: "Nic Wall Ryan Milligan STAT 434 Final Project"
+output: html_notebook
+---
+
+INTRODUCTION
+
+The purpose of this report is to predict Major League Baseball's wins per pitcher, based on historical data from each players regur seasons pitching statistics. We investigated the effect various statistics, such as ERA or innings pitched, had on a pitcher's number of wins. We used a number of different methods to see what was the best predictor for number of wins. We used simple linear regression, random forests, Ridge regression, LASSO regression, and boosting to find the best model at predicting number of wins. We also used forward and backwards stepwise regression in order to limit the number of variables to the most important ones. We decided to use the 10 best variables at predicting number of wins because we figured with all the different factors in baseball, we would need a decent amount of predictors. Some of the predictors chosen through forward and backwards stepwise regression made complete sense, while others came as a surprise, as will be discussed. We calculated the test errors for each model using all four training data sets and observed the results.
+
+The data set we used to predict was found on Kaggle: https://www.kaggle.com/arashnic/baseballdatabank
+
+List of the libraries we used.
+
+```{r}
+library(leaps)
+library(randomForest)
+library(glmnet)
+library(ggplot2)
+```
+
+First we made 4 different training data sets, each of which had sizes that varied from one another. We also deleted the first 5 columns because they were categorical (things like player ID, team name, etc.). We also got rid of all observations that had NA's in any of the other columns.
+
+```{r}
+#The data set we used to predict was found on Kaggle:  https://www.kaggle.com/arashnic/baseballdatabank
+
+set.seed(1)
+pitching <- read.csv("C:/Users/nicwa/Downloads/Pitching.csv", header = TRUE)
+pitching <- pitching[,-c(1:5)]
+pitching <- pitching[complete.cases(pitching),]
+attach(pitching)
+pitching <- pitching[IPouts > 100,]
+train1 <- sample(1:nrow(pitching), size = floor(nrow(pitching)/2))
+pitching.train1 <- pitching[train1,]
+pitching.test1 <- pitching[-train1,]
+
+train2 <- sample(1:nrow(pitching), size = floor(nrow(pitching)/4))
+pitching.train2 <- pitching[train2,]
+pitching.test2 <- pitching[-train2,]
+
+
+train3 <- sample(1:nrow(pitching), size = floor(nrow(pitching)/6))
+pitching.train3 <- pitching[train3,]
+pitching.test3 <- pitching[-train3,]
+
+train4 <- sample(1:nrow(pitching), size = floor(nrow(pitching)/10))
+pitching.train4 <- pitching[train4,]
+pitching.test4 <- pitching[-train4,]
+```
+
+From our summary statistics where we find the mean number of wins per pitcher is 7.322 with a median of 6 wins. We could not produce a plot with all the variables because there were too many, but we made a scatterplot of the number of outs the pitcher has recorded vs. the number of wins for the pitcher. Prior to any calculation or regression we believe number of outs/innings pitched would be the best predictor of wins. We also produced a histogram of the number of wins where we found it to be very right skewed.
+
+```{r}
+attach(pitching)
+summary(pitching)
+plot(IPouts,W)
+hist(W)
+```
+
+We performed forward stepwise regression on all our training data sets so we can limit the number of variables to the best ones for predicting number of wins.
+
+```{r}
+forwardm1 <- regsubsets(W ~ . , data = pitching.train1, nvmax = 10,
+                       method = "forward")
+
+backwardm2 <- regsubsets(W ~ . , data = pitching.train2, nvmax = 10,
+                       method = "backward")
+
+forwardm3 <- regsubsets(W ~ . , data = pitching.train3, nvmax = 10,
+                       method = "forward")
+
+backwardm4 <- regsubsets(W ~ . , data = pitching.train4, nvmax = 10,
+                       method = "backward")
+```
+
+For the first training data set, which contained the most observations, we used forward stepwise regression. We found the 10 most important variables in predicting wins are (in order) IPouts,L,R,GS,G,CG,SV,IBB,ERA, and SHO. For the second training data set we used backwards stepwise regression and found the 10 most important variables for predicting wins (in order) are BFP, R, L, GS, G, BB, H, GIDP, SF, SV. For the third training data set we used forward stepwise regression and found the 10 most important predictors are IPouts, L, R, GS, G, SHO, ERA, IBB, HR, and SV. For the fourth training data set we used backwards stepwise regression and found the 10 most important predictors are IPouts, L, ER, GS, G, ERA, BB, BK, SF, and SV.
+
+```{r}
+summary(forwardm1)
+summary(backwardm2)
+summary(forwardm3)
+summary(backwardm4)
+```
+
+MULTIPLE LINEAR REGRESSION
+
+```{r}
+m1 <- lm(W ~ IPouts + L + R + GS + G+ + CG + SV  + IBB + ERA + SHO, data = pitching.train1)
+
+m2 <- lm(W ~ BFP + R + L + GS + G + BB + H + GIDP + SF + SV, data = pitching.train2)
+
+m3 <- lm(W ~ IPouts + L + R + GS + G + SHO + ERA + IBB + HR + SV, data = pitching.train3)
+
+m4 <- lm(W ~ IPouts + L + ER + GS + G + ERA + BB + BK + SF + SV, data = pitching.train4)
+```
+
+For the first training data set (the largest) We found all 10 variables to be statistically significant at the .05. From the graphs there does not appear to be any fanning, evidence of lack of normality, or non-linear patters in the residuals so the assumptions for inference appear to be met. The overall model has a p-value less than 2.2e-16 and an F-statistic of 1597 on 10 and 3401 degrees of freedom. The adjust R-squared is 0.8239. Overall the multiple linear model appears to be a good fit for the data. We also get a test error of 3.54.
+
+```{r}
+summary(m1)
+plot(m1)
+preds1 <- predict(m1, newdata = pitching.test1)
+mean((pitching.test1$W - preds1)^2)
+```
+
+For the second training data set all 10 predictors have p-values below .05 (most of them far below). The scale-location does show a bit of a bend in the beginning but not severe enough to imply the assumptions for inference are not met. The overall model has a p-value less than 2.2e-16 and an F-statistic of 844.1 on 10 and 1695 degrees of freedom. The adjust R-squared is 0.8318. Overall the multiple linear model appears to be a good fit for the data. We also got a test error of 3.62.
+
+```{r}
+summary(m2)
+plot(m2)
+preds2 <- predict(m2, newdata = pitching.test2)
+mean((pitching.test2$W - preds2)^2)
+```
+
+For the third training data set we found all variables to be statistically significant at the .05 level except for Home Runs given up (HR) and saves (SV). The only graph which shows evidence of lack of normality is the QQ plot which has some tailing at the end, but not significant enough to imply the assumptions for inference have not been met. The overall model has a p-value less than 2.2e-16 and an F-statistic of 545.7 on 10 and 1126 degrees of freedom. The adjust R-squared is 0.8274. Overall the multiple linear model appears to be a good fit for the data. We also got a test error of 3.58.
+
+
+```{r}
+summary(m3)
+plot(m3)
+preds3 <- predict(m3, newdata = pitching.test3)
+mean((pitching.test3$W - preds3)^2)
+```
+
+For the fourth training data set all 10 predictors were statistically significant at the .05 level with very small p-values. The graphs did not show any deviance from normality or fanning patters so we believe the assumptions for inference are met. 4 of the predictors however were not significant at the .05 level, being walks (BB), balks (BK), sacrifice flies given up (SF), and saves (SV). There was an adjusted R-squared of .8253 along with an overall F-statistic of 322.7 on 10 and 671 degrees of freedom which led to a p-value less than 2.2e-16. The assumptions for inference of met but since almost half the predictors were not significant it is possible there is a better model than linear for this data. We got a test error of 4.26.
+
+```{r}
+summary(m4)
+plot(m4)
+preds4 <- predict(m4, newdata = pitching.test4)
+mean((pitching.test4$W[na.omit(W)] - preds4[na.omit(W)])^2)
+```
+
+Using random forests on our first training data set we received a test error of 3.53.
+
+```{r}
+m1 <- randomForest(W ~ IPouts + L + R + GS + G+ + CG + SV  + IBB + ERA + SHO, data = pitching.train1, importance = T)
+summary(m1)
+importance(m1)
+pred.lm1 <- predict(m1, pitching.test1)
+mean((pred.lm1 - pitching.test1$W)^2)
+```
+
+Using random forests for our second training data set we receive a slightly larger test error at 3.76.
+
+```{r}
+m2 <- randomForest(W ~ BFP + R + L + GS + G + BB + H + GIDP + SF + SV, data = pitching.train2, importance = T)
+summary(m2)
+importance(m2)
+pred.lm2 <- predict(m2, pitching.test2)
+mean((pred.lm2 - pitching.test2$W)^2)
+```
+
+Using random forests for our third training data set we produced a test error of 3.71, which is slightly lower than in the second training data set but larger than using the first training data set.
+
+```{r}
+m3 <- randomForest(W ~ IPouts + L + R + GS + G + SHO + ERA + IBB + HR + SV, data = pitching.train3, importance = T)
+summary(m3)
+importance(m3)
+pred.lm3 <- predict(m3, pitching.test3)
+mean((pred.lm3 - pitching.test3$W)^2)
+```
+
+Using random forests on our fourth training data set we receive a test error of 3.74, which was the third highest test error, but very close to the others.
+
+```{r}
+m4 <- randomForest(W ~ IPouts + L + ER + GS + G + ERA + BB + BK + SF + SV, data = pitching.train4, importance = T)
+summary(m4)
+importance(m4)
+pred.lm4 <- predict(m4, pitching.test4)
+mean((pred.lm4 - pitching.test4$W)^2)
+```
+
+RIDGE REGRESSION
+
+We observe a test error of 36.20 when using the first training data set in our ridge regression model.
+
+```{r}
+x1 <- model.matrix(W ~ ., pitching.train1)
+y1 <- pitching.train1$W
+z1 <- pitching.train1$W
+u1 <- model.matrix(W ~ ., pitching.test1)
+cv.out1 <- cv.glmnet(x1, y1, alpha = 0)
+lam1 <- cv.out1$lambda.min
+ridge1 <- glmnet(x1,y1, alpha =0, lambda = lam1)
+ridge.pred1 <- predict(ridge1, s1 = lam1, newx = u1)
+mean((z1 - ridge.pred1)^2)
+```
+
+We observe a test error of 36.72 when using the second training data set in our ridge regression model.
+
+```{r}
+x2 <- model.matrix(W ~ ., pitching.train2)
+y2 <- pitching.train2$W
+z2 <- pitching.train2$W
+u2 <- model.matrix(W ~ ., pitching.test2)
+
+
+cv.out2 <- cv.glmnet(x2, y2, alpha = 0)
+lam2 <- cv.out2$lambda.min
+ridge2 <- glmnet(x2,y2,alpha =0, lambda = lam2)
+ridge.pred2 <- predict(ridge2, s2 = lam2, newx = u2)
+mean((z2 - ridge.pred2)^2)
+```
+
+Using our third training data set in our ridge regression model, we observe a test error of 36.67.
+
+```{r}
+x3 <- model.matrix(W ~ ., pitching.train3)
+y3 <- pitching.train3$W
+z3 <- pitching.train3$W
+u3 <- model.matrix(W ~ ., pitching.test3)
+
+
+cv.out3 <- cv.glmnet(x3, y3, alpha = 0)
+lam3 <- cv.out3$lambda.min
+ridge3 <- glmnet(x3,y3,alpha =0, lambda = lam3)
+ridge.pred3 <- predict(ridge3, s3 = lam3, newx = u3)
+mean((z3 - ridge.pred3)^2)
+```
+
+With our fourth training data set in our ridge regression model, we observe a test error of 36.58.
+
+```{r}
+x4 <- model.matrix(W ~ ., pitching.train4)
+y4 <- pitching.train4$W
+z4 <- pitching.train4$W
+u4 <- model.matrix(W ~ ., pitching.test4)
+
+
+cv.out4 <- cv.glmnet(x4, y4, alpha = 0)
+lam4 <- cv.out4$lambda.min
+ridge4 <- glmnet(x4,y4,alpha =0, lambda = lam4)
+ridge.pred4 <- predict(ridge4, s4 = lam4, newx = u4)
+mean((z4 - ridge.pred4)^2)
+```
+
+LASSO REGRESSION
+
+We observe a test error of 37.15 when using our first training data set in our lasso regression model.
+
+```{r}
+x1 <- model.matrix(W ~ ., pitching.train1)
+y1 <- pitching.train1$W
+z1 <- pitching.train1$W
+u1 <- model.matrix(W ~ ., pitching.test1)
+
+
+cv.out1 <- cv.glmnet(x1, y1, alpha = 1)
+lam1 <- cv.out1$lambda.min
+lasso1 <- glmnet(x1,y1, alpha =1, lambda = lam1)
+lasso.pred1 <- predict(lasso1, s1 = lam1, newx = u1)
+mean((z1 - lasso.pred1)^2)
+```
+
+Using our second training data set, we observe a test error of 37.64.
+
+```{r}
+x2 <- model.matrix(W ~ ., pitching.train2)
+y2 <- pitching.train2$W
+z2 <- pitching.train2$W
+u2 <- model.matrix(W ~ ., pitching.test2)
+
+
+cv.out2 <- cv.glmnet(x2, y2, alpha = 1)
+lam2 <- cv.out2$lambda.min
+lasso2 <- glmnet(x2,y2, alpha =1, lambda = lam2)
+lasso.pred2 <- predict(lasso2, s2 = lam2, newx = u2)
+mean((z2 - lasso.pred2)^2)
+```
+
+With our third training data set in our lasso regression model, we observe a test error of 37.43.
+
+```{r}
+x3 <- model.matrix(W ~ ., pitching.train3)
+y3 <- pitching.train3$W
+z3 <- pitching.train3$W
+u3 <- model.matrix(W ~ ., pitching.test3)
+
+cv.out3 <- cv.glmnet(x3, y3, alpha = 1)
+lam3 <- cv.out3$lambda.min
+lasso3 <- glmnet(x3,y3, alpha =1, lambda = lam3)
+lasso.pred3 <- predict(lasso3, s3 = lam3, newx = u3)
+mean((z3 - lasso.pred3)^2)
+```
+
+Using our fourth training data set, we observe a test error of 37.96.
+
+```{r}
+x4 <- model.matrix(W ~ ., pitching.train4)
+y4 <- pitching.train4$W
+z4 <- pitching.train4$W
+u4 <- model.matrix(W ~ ., pitching.test4)
+
+cv.out4 <- cv.glmnet(x4, y4, alpha = 1)
+lam4 <- cv.out4$lambda.min
+lasso4  <- glmnet(x4,y4, alpha =1, lambda = lam4)
+lasso.pred4 <- predict(lasso4, s4 = lam4, newx = u4)
+mean((z4 - lasso.pred4)^2)
+```
+
+BOOSTING
+
+Using the boosting method on our first training data set, we observe a test error of 4.68.
+
+```{r}
+library(gbm)
+library(ggplot2)
+lambdas <- c(c(), seq(0.002, 0.01, by=0.001))
+lambdas <- c(lambdas, seq(0.02, 0.1, by=0.01))
+lambdas <- c(lambdas, seq(0.2, 1, by=0.1))
+length.lambdas <- length(lambdas)
+train_error1 <- rep(NA, length.lambdas)
+test_error1 <- rep(NA, length.lambdas)
+for (i in 1:length.lambdas) {
+    boost.hitters1 <- gbm(W ~ ., data = pitching.train1, distribution = "gaussian", 
+        n.trees = 1000, shrinkage = lambdas[i])
+    train_pred1 <- predict(boost.hitters1, pitching.train1, n.trees = 1000)
+    test_pred1 <- predict(boost.hitters1, pitching.test1, n.trees = 1000)
+    train_error1[i] = mean((pitching.train1$W - train_pred1)^2)
+    test_error1[i] = mean((pitching.test1$W - test_pred1)^2)
+}
+
+ggplot(data.frame(x=lambdas, y=train_error1), aes(x=x, y=y)) + xlab("Shrinkage") + ylab("Train MSE") + geom_point()
+test_error1 <- mean((pitching.test1$W - test_pred1)^2)
+test_error1
+```
+
+Using our second training data set in our boosting model, we observe a test error of 5.90 which is higher than the first training data set test error.
+
+```{r}
+lambdas <- c(c(), seq(0.002, 0.01, by=0.001))
+lambdas <- c(lambdas, seq(0.02, 0.1, by=0.01))
+lambdas <- c(lambdas, seq(0.2, 1, by=0.1))
+length.lambdas <- length(lambdas)
+train_error2 <- rep(NA, length.lambdas)
+test_error2 <- rep(NA, length.lambdas)
+for (i in 1:length.lambdas) {
+    boost.hitters2 <- gbm(W ~ ., data = pitching.train2, distribution = "gaussian", 
+        n.trees = 1000, shrinkage = lambdas[i])
+    train_pred2 <- predict(boost.hitters2, pitching.train2, n.trees = 1000)
+    test_pred2 <- predict(boost.hitters2, pitching.test2, n.trees = 1000)
+    train_error2[i] = mean((pitching.train2$W - train_pred2)^2)
+    test_error2[i] = mean((pitching.test2$W - test_pred2)^2)
+}
+
+ggplot(data.frame(x=lambdas, y=train_error2), aes(x=x, y=y)) + xlab("Shrinkage") + ylab("Train MSE") + geom_point()
+test_error2 <- mean((pitching.test2$W - test_pred2)^2)
+test_error2
+```
+
+With our third training set in our boosting model, we observe a test error of 6.47 which is higher than both the previous test errors.
+
+```{r}
+lambdas <- c(c(), seq(0.002, 0.01, by=0.001))
+lambdas <- c(lambdas, seq(0.02, 0.1, by=0.01))
+lambdas <- c(lambdas, seq(0.2, 1, by=0.1))
+length.lambdas <- length(lambdas)
+train_error3 <- rep(NA, length.lambdas)
+test_error3 <- rep(NA, length.lambdas)
+for (i in 1:length.lambdas) {
+    boost.hitters3 <- gbm(W ~ ., data = pitching.train3, distribution = "gaussian", 
+        n.trees = 1000, shrinkage = lambdas[i])
+    train_pred3 <- predict(boost.hitters3, pitching.train3, n.trees = 1000)
+    test_pred3 <- predict(boost.hitters3, pitching.test3, n.trees = 1000)
+    train_error3[i] = mean((pitching.train3$W - train_pred3)^2)
+    test_error3[i] = mean((pitching.test3$W - test_pred3)^2)
+}
+
+ggplot(data.frame(x=lambdas, y=train_error3), aes(x=x, y=y)) + xlab("Shrinkage") + ylab("Train MSE") + geom_point()
+test_error3 <- mean((pitching.test3$W - test_pred3)^2)
+test_error3
+```
+
+We observe a test error of 8.21 when using our fourth training data set in our boosting model which is the highest test error of any training data set while using the boosting model. It appears that we get lower test errors in our boosting model as we increase the size of the training data set.
+
+```{r}
+lambdas <- c(c(), seq(0.002, 0.01, by=0.001))
+lambdas <- c(lambdas, seq(0.02, 0.1, by=0.01))
+lambdas <- c(lambdas, seq(0.2, 1, by=0.1))
+length.lambdas <- length(lambdas)
+train_error4 <- rep(NA, length.lambdas)
+test_error4 <- rep(NA, length.lambdas)
+for (i in 1:length.lambdas) {
+    boost.hitters4 <- gbm(W ~ ., data = pitching.train4, distribution = "gaussian", 
+        n.trees = 1000, shrinkage = lambdas[i])
+    train_pred4 <- predict(boost.hitters4, pitching.train4, n.trees = 1000)
+    test_pred4 <- predict(boost.hitters4, pitching.test4, n.trees = 1000)
+    train_error4[i] = mean((pitching.train4$W - train_pred4)^2)
+    test_error4[i] = mean((pitching.test4$W - test_pred4)^2)
+}
+
+ggplot(data.frame(x=lambdas, y=train_error4), aes(x=x, y=y)) + xlab("Shrinkage") + ylab("Train MSE") + geom_point() 
+test_error4 <- mean((pitching.test4$W - test_pred4)^2)
+test_error4
+```
+
+CONCLUSION
+
+We can see from performing a multitude of different regression models on our various sizes of training data that as the number of observations in the training set decreases, our test error increases. It is important to note this was not the case for all our models, as in our ridge and lasso regession models we occassionally saw slight decreases in our test errors as we moved from our second training data set to our fourth.
+
+The ridge and lasso regression models were also our lowest performing models, with test errors much higher than those of our best models. Our two best models were random forests and multiple regression, which produced test errors of 3.53 and 3.54 when using our first training data set, respectively.
+
+Our boosting model received a test error score that was similar to these two with our first training data set, but increased at a higher rate when moving from training sets with more observatios to those with fewer observations as compared to our best models.
+
+Overall, we can see that in predicting the amount of wins for a given major league baseball pitcher, the best method appears to be using a training set with a higher number of observations when compared to another training data set, as well as either the random forest or multiple regression model.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
