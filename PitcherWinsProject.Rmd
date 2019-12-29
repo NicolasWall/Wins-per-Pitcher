@@ -2,7 +2,7 @@
 title: "Nic Wall Ryan Milligan STAT 434 Final Project"
 output: html_notebook
 ---
-
+NOTE: I also attached an HTML of the R Markdown output, which contains all code, summary, and output.
 INTRODUCTION
 
 The purpose of this report is to predict Major League Baseball's wins per pitcher, based on historical data from each players regur seasons pitching statistics. We investigated the effect various statistics, such as ERA or innings pitched, had on a pitcher's number of wins. We used a number of different methods to see what was the best predictor for number of wins. We used simple linear regression, random forests, Ridge regression, LASSO regression, and boosting to find the best model at predicting number of wins. We also used forward and backwards stepwise regression in order to limit the number of variables to the most important ones. We decided to use the 10 best variables at predicting number of wins because we figured with all the different factors in baseball, we would need a decent amount of predictors. Some of the predictors chosen through forward and backwards stepwise regression made complete sense, while others came as a surprise, as will be discussed. We calculated the test errors for each model using all four training data sets and observed the results.
